@@ -125,21 +125,27 @@ def extract_global_declarations(remediated_code: str) -> str:
 
     for line in lines:
         stripped_line = line.strip()
+
+        # Skip empty or fully commented lines
         if not stripped_line or stripped_line.startswith("*") or stripped_line.startswith('"'):
             continue
 
+        # Normalize for matching
         upper_line = stripped_line.upper()
 
-        if any(upper_line.startswith(keyword) for keyword in start_keywords):
+        # Strip inline comment for declaration end check
+        code_only = re.split(r'"|\*', upper_line)[0].strip()
+
+        if any(code_only.startswith(keyword) for keyword in start_keywords):
             capture = True
             block = line
-            if upper_line.endswith("."):
+            if code_only.endswith("."):
                 global_blocks.append(block.strip())
                 block = ""
                 capture = False
         elif capture:
             block += "\n" + line
-            if upper_line.endswith("."):
+            if code_only.endswith("."):
                 global_blocks.append(block.strip())
                 block = ""
                 capture = False
