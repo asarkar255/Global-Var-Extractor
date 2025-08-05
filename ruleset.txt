@@ -369,8 +369,8 @@ TABLES: lips, mara.
 
 Output:
 *TABLES: lips, mara.                   "Commented By PwA  Rule 7A
-DATA gs_lips TYPE lips.                "Added By PwA  Rule 7A
-DATA gs_mara TYPE mara.                "Added By PwA  Rule 7A
+DATA: gs_lips TYPE lips.                "Added By PwA  Rule 7A
+DATA: gs_mara TYPE mara.                "Added By PwA  Rule 7A
 
 Example 2:
 
@@ -379,7 +379,7 @@ TABLES: ekko.
 
 Output:
 *TABLES: ekko.                         "Commented By PwA  Rule 7A
-DATA gs_ekko TYPE ekko.                "Added By PwA  Rule 7A
+DATA: gs_ekko TYPE ekko.                "Added By PwA  Rule 7A
 
 Summary Table:
 
