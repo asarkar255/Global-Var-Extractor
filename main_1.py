@@ -128,7 +128,8 @@ def extract_global_declarations(remediated_code: str) -> str:
         stripped_line = line.strip()
 
         # Skip empty or fully commented lines
-        if not stripped_line or stripped_line.startswith("*") or stripped_line.startswith('"'):
+        # if not stripped_line or stripped_line.startswith("*") or stripped_line.startswith('"'):
+        if not stripped_line  or stripped_line.startswith('"'):
             continue
 
         # Normalize for matching
