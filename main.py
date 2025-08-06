@@ -219,7 +219,7 @@ def extract_globals_with_mapping(input_code: str):
 # -----------------------------
 # FastAPI Endpoint
 # -----------------------------
-@app.post("/remediate_and_extract_mapping/")
+@app.post("/remediate_and_extract_globals/")
 async def remediate_and_extract_globals(input_data: ABAPCodeInput):
     result = extract_globals_with_mapping(input_data.code)
     return result
