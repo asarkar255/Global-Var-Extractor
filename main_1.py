@@ -1,5 +1,3 @@
-# Filename: main.py (FastAPI app with variable mapping)
-
 import os
 import re
 from fastapi import FastAPI
@@ -109,93 +107,70 @@ class ABAPCodeInput(BaseModel):
     code: str
 
 # -----------------------------
-# Global Mapping Extractor
+# Global Declarations Extractor
 # -----------------------------
-def extract_variable_mapping(remediated_code: str) -> list:
-    mapping = []
+def extract_global_declarations(remediated_code: str) -> str:
     lines = remediated_code.splitlines()
+    global_blocks = []
+    capture = False
+    block = ""
 
-    original_vars = {}
-    new_vars = {}
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("*TABLES:"):
-            tables = re.findall(r'TABLES:\s*(.*)\.', stripped)
-            if tables:
-                for tbl in tables[0].split(','):
-                    tbl_name = tbl.strip()
-                    if tbl_name:
-                        original_vars[tbl_name] = f"gs_{tbl_name}"
-        elif "OCCURS 0 WITH HEADER LINE" in stripped:
-            match = re.match(r"\*?\s*DATA:\s+BEGIN OF (\w+).*", stripped)
-            if match:
-                name = match.group(1)
-                original_vars[name] = f"gs_{name}"
+    start_keywords = [
+        "DATA", "DATA:",
+        "TYPES", "TYPES:",
+        "CONSTANTS", "CONSTANTS:",
+        "TABLES", "TABLES:",
+        "PARAMETERS", "PARAMETERS:",
+        "SELECT-OPTIONS", "SELECT-OPTIONS:"
+    ]
 
     for line in lines:
-        m = re.match(r"\s*DATA:\s+(\w+)\s+TYPE\s+(\w+).*", line)
-        if m:
-            var, typ = m.groups()
-            if var.startswith("gs_"):
-                new_vars[typ] = var
+        stripped_line = line.strip()
 
-    for old, new in original_vars.items():
-        if old in new_vars:
-            mapping.append({
-                "original": old,
-                "replacement": new_vars[old],
-                "note": f"Replace all usage of {old} as work area with {new_vars[old]}"
-            })
-        else:
-            mapping.append({
-                "original": old,
-                "replacement": new,
-                "note": f"Replace all usage of {old} as work area with {new}"
-            })
+        # Skip empty or fully commented lines
+        if not stripped_line or stripped_line.startswith("*") or stripped_line.startswith('"'):
+            continue
 
-    return mapping
+        # Normalize for matching
+        upper_line = stripped_line.upper()
 
-# -----------------------------
-# Injection Helper
-# -----------------------------
-def inject_variable_mapping_block(code: str, mapping: list) -> str:
-    start_tag = "[GLOBAL_DATA_START]"
-    end_tag = "[GLOBAL_DATA_END]"
+        # Strip inline comment for declaration end check
+        code_only = re.split(r'"|\*', upper_line)[0].strip()
 
-    lines = code.splitlines()
-    try:
-        start_idx = lines.index(start_tag)
-        end_idx = lines.index(end_tag)
-    except ValueError:
-        return code
+        if any(code_only.startswith(keyword) for keyword in start_keywords):
+            capture = True
+            block = line
+            if code_only.endswith("."):
+                global_blocks.append(block.strip())
+                block = ""
+                capture = False
+        elif capture:
+            block += "\n" + line
+            if code_only.endswith("."):
+                global_blocks.append(block.strip())
+                block = ""
+                capture = False
 
-    mapping_lines = ["[VARIABLE_MAPPING]"]
-    for item in mapping:
-        mapping_lines.append(
-            f"Original: {item['original']}   -> Replacement: {item['replacement']}    -- {item['note']}"
-        )
-    mapping_lines.append("[VARIABLE_MAPPING_END]")
+    if not global_blocks:
+        return "[GLOBAL_DATA_START]\n[GLOBAL_DATA_END]"
 
-    # Inject between start and end
-    new_global_block = lines[start_idx+1:end_idx] + [""] + mapping_lines
-    new_code = lines[:start_idx+1] + new_global_block + lines[end_idx:]
-
-    return "\n".join(new_code)
+    return "[GLOBAL_DATA_START]\n" + "\n\n".join(global_blocks) + "\n[GLOBAL_DATA_END]"
 
 # -----------------------------
-# Main Logic
+# Main Remediation + Extraction Logic
 # -----------------------------
-def extract_globals_with_mapping(input_code: str):
+def extract_globals_from_remediated_code(input_code: str):
     rules_text = "\n\n".join([doc.page_content for doc in docs])
     example_rules_text = "\n\n".join([doc.page_content for doc in docs2])
 
     lines = input_code.splitlines()
     chunks = [lines[i:i + 800] for i in range(0, len(lines), 800)]
+
     full_remediated_code = ""
 
     for chunk_lines in chunks:
         chunk_code = "\n".join(chunk_lines)
+
         response = remediate_chain.invoke(
             {
                 "Rules": rules_text,
@@ -204,22 +179,17 @@ def extract_globals_with_mapping(input_code: str):
             },
             config={"configurable": {"session_id": "extract_globals"}}
         )
+
         full_remediated_code += response
 
-    mapping = extract_variable_mapping(full_remediated_code)
+    global_context = extract_global_declarations(full_remediated_code)
 
-    # Inject mapping inside global block
-    final_code = inject_variable_mapping_block(full_remediated_code, mapping)
-
-    return {
-        "remediated_code": final_code,
-        "variable_mapping": mapping
-    }
+    return global_context
 
 # -----------------------------
 # FastAPI Endpoint
 # -----------------------------
-@app.post("/remediate_and_extract_mapping/")
+@app.post("/remediate_and_extract_globals/")
 async def remediate_and_extract_globals(input_data: ABAPCodeInput):
-    result = extract_globals_with_mapping(input_data.code)
-    return result
+    result = extract_globals_from_remediated_code(input_data.code)
+    return {"global_data": result}
