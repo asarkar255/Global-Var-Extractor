@@ -136,8 +136,9 @@ def extract_global_declarations(remediated_code: str) -> str:
         upper_line = stripped_line.upper()
 
         # Strip inline comment for declaration end check
-        code_only = re.split(r'"|\*', upper_line)[0].strip()
-
+        # code_only = re.split(r'"|\*', upper_line)[0].strip()
+        code_only = re.split(r'"', upper_line)[0].strip()
+        # Check if line starts a new global declaration block                    
         if any(code_only.startswith(keyword) for keyword in start_keywords):
             capture = True
             block = line
@@ -156,7 +157,7 @@ def extract_global_declarations(remediated_code: str) -> str:
         return "[GLOBAL_DATA_START]\n[GLOBAL_DATA_END]"
 
     return "[GLOBAL_DATA_START]\n" + "\n\n".join(global_blocks) + "\n[GLOBAL_DATA_END]"
-
+    
 # -----------------------------
 # Main Remediation + Extraction Logic
 # -----------------------------
